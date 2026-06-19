@@ -104,12 +104,46 @@ public class HeartbeatSDK {
         timer?.invalidate()
         timer = nil
         isTransmitting = false
-        sessionId = nil
-        userId = nil
+        
+        // Send close notification to the server
+        sendCloseNotification()
         
         locationManager.stopUpdatingLocation()
         
+        sessionId = nil
+        userId = nil
+        
         logger.info("Session closed.")
+    }
+    
+    private func sendCloseNotification() {
+        guard let endpointUrl = endpointUrl, let url = URL(string: endpointUrl) else { return }
+        
+        let payloadData: [String: Any] = [
+            "device_id": deviceId ?? "",
+            "session_id": sessionId ?? "",
+            "user_id": userId ?? "",
+            "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
+            "action": "close_session"
+        ]
+        
+        let payload: [String: Any] = ["data": payloadData]
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
+        } catch { return }
+        
+        URLSession.shared.dataTask(with: request) { [weak self] _, _, error in
+            if let error = error {
+                self?.logger.error("Failed to send close notification: \(error.localizedDescription)")
+            } else {
+                self?.logger.info("Close notification sent successfully.")
+            }
+        }.resume()
     }
     
     private func startTransmitting() {
