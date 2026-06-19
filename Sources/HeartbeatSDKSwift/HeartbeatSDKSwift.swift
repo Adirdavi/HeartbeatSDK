@@ -86,18 +86,22 @@ public class HeartbeatSDK {
     private func sendHeartbeat() {
         guard let endpointUrl = endpointUrl, let url = URL(string: endpointUrl) else { return }
         
-        let payload: [String: Any] = [
+        let payloadData: [String: Any] = [
             "device_id": deviceId ?? "",
             "app_id": appId ?? "",
             "session_id": sessionId ?? "",
             "user_id": userId ?? "",
             "activity_type": activityType ?? "unknown",
-            "timestamp": ISO8601DateFormatter().string(from: Date()),
+            "timestamp": Int(Date().timeIntervalSince1970 * 1000),
             "battery_level": getBatteryLevel(),
             "gps": [
                 "lat": 32.0853, // Mock GPS for now
                 "lng": 34.7818
             ]
+        ]
+        
+        let payload: [String: Any] = [
+            "data": payloadData
         ]
         
         var request = URLRequest(url: url)
