@@ -1,6 +1,7 @@
 import Foundation
 import os
 import CoreLocation
+import HealthKit
 
 #if os(watchOS)
 import WatchKit
@@ -44,10 +45,11 @@ public class HeartbeatSDK {
     private var activityType: String?
     private var timer: Timer?
     
-    // Health Metrics (simulated for now, ready for HealthKit)
-    private var currentHeartRate: Int = 72
-    private var currentSpO2: Int = 98
-    private var heartRateDirection: Int = 1 // 1 = going up, -1 = going down
+    // Health Metrics
+    private var currentHeartRate: Int = -1
+    private var currentSpO2: Int = -1
+    private let healthStore = HKHealthStore()
+    private var isHealthKitAuthorized = false
     
     // Location
     private let locationManager = CLLocationManager()
@@ -60,12 +62,36 @@ public class HeartbeatSDK {
     private init() {
         loadQueue()
         setupLocation()
+        setupHealthKit()
     }
     
     private func setupLocation() {
         locationManager.delegate = locationDelegate
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
         locationManager.requestWhenInUseAuthorization()
+    }
+    
+    private func setupHealthKit() {
+        guard HKHealthStore.isHealthDataAvailable() else {
+            logger.error("HealthKit is not available on this device.")
+            return
+        }
+        
+        guard let hrType = HKObjectType.quantityType(forIdentifier: .heartRate),
+              let spo2Type = HKObjectType.quantityType(forIdentifier: .oxygenSaturation) else {
+            return
+        }
+        
+        let typesToRead: Set<HKObjectType> = [hrType, spo2Type]
+        
+        healthStore.requestAuthorization(toShare: nil, read: typesToRead) { [weak self] success, error in
+            if success {
+                self?.isHealthKitAuthorized = true
+                self?.logger.info("HealthKit authorization granted.")
+            } else {
+                self?.logger.error("HealthKit authorization failed: \(error?.localizedDescription ?? "unknown")")
+            }
+        }
     }
     
     public func configure(projectId: String, deviceId: String, appId: String = Bundle.main.bundleIdentifier ?? "unknown") {
@@ -84,7 +110,9 @@ public class HeartbeatSDK {
         
         if isTransmitting {
             logger.warning("Session already open. Closing previous session.")
-            closeSession()
+            Task {
+                await closeSession()
+            }
         }
         
         self.sessionId = UUID().uuidString
@@ -100,13 +128,13 @@ public class HeartbeatSDK {
         startTransmitting()
     }
     
-    public func closeSession() {
+    public func closeSession() async {
         timer?.invalidate()
         timer = nil
         isTransmitting = false
         
         // Send close notification to the server
-        sendCloseNotification()
+        await sendCloseNotification()
         
         locationManager.stopUpdatingLocation()
         
@@ -116,7 +144,7 @@ public class HeartbeatSDK {
         logger.info("Session closed.")
     }
     
-    private func sendCloseNotification() {
+    private func sendCloseNotification() async {
         guard let endpointUrl = endpointUrl, let url = URL(string: endpointUrl) else { return }
         
         let payloadData: [String: Any] = [
@@ -135,52 +163,71 @@ public class HeartbeatSDK {
         
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
-        } catch { return }
-        
-        URLSession.shared.dataTask(with: request) { [weak self] _, _, error in
-            if let error = error {
-                self?.logger.error("Failed to send close notification: \(error.localizedDescription)")
+            let (_, response) = try await URLSession.shared.data(for: request)
+            if let httpResponse = response as? HTTPURLResponse, !(200...299).contains(httpResponse.statusCode) {
+                logger.error("Server returned error closing session: \(httpResponse.statusCode)")
             } else {
-                self?.logger.info("Close notification sent successfully.")
+                logger.info("Close notification sent successfully.")
             }
-        }.resume()
+        } catch { 
+            logger.error("Failed to send close notification: \(error.localizedDescription)")
+        }
     }
     
     private func startTransmitting() {
         // Send immediately, then every 5 seconds
-        sendHeartbeat()
+        Task {
+            await sendHeartbeat()
+        }
         
         DispatchQueue.main.async {
             self.timer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
-                self?.sendHeartbeat()
+                Task {
+                    await self?.sendHeartbeat()
+                }
             }
         }
     }
     
-    // MARK: - Simulated Health Data
+    // MARK: - HealthKit Data
     
-    /// Generates realistic heart rate values that fluctuate naturally
-    private func getHeartRate() -> Int {
-        // Simulate realistic heart rate fluctuation (60-180 BPM range for swimming)
-        let change = Int.random(in: -3...5)
-        currentHeartRate += change * heartRateDirection
+    private func fetchLatestHealthData() async {
+        guard isHealthKitAuthorized else { return }
         
-        // Reverse direction at boundaries
-        if currentHeartRate > 160 { heartRateDirection = -1 }
-        if currentHeartRate < 65 { heartRateDirection = 1 }
-        
-        // Clamp to safe range
-        currentHeartRate = max(55, min(185, currentHeartRate))
-        return currentHeartRate
+        if let hr = await fetchLatestSample(for: .heartRate) {
+            self.currentHeartRate = Int(hr)
+        }
+        if let spo2 = await fetchLatestSample(for: .oxygenSaturation) {
+            self.currentSpO2 = Int(spo2 * 100)
+        }
     }
     
-    /// Generates realistic SpO2 values (blood oxygen saturation)
-    private func getSpO2() -> Int {
-        // SpO2 normally stays between 95-100%
-        let change = Int.random(in: -1...1)
-        currentSpO2 += change
-        currentSpO2 = max(93, min(100, currentSpO2))
-        return currentSpO2
+    private func fetchLatestSample(for identifier: HKQuantityTypeIdentifier) async -> Double? {
+        guard let type = HKQuantityType.quantityType(forIdentifier: identifier) else { return nil }
+        
+        return await withCheckedContinuation { continuation in
+            let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
+            // Query only samples from the last 15 minutes to avoid stale data
+            let predicate = HKQuery.predicateForSamples(withStart: Date().addingTimeInterval(-900), end: Date(), options: .strictEndDate)
+            
+            let query = HKSampleQuery(sampleType: type, predicate: predicate, limit: 1, sortDescriptors: [sortDescriptor]) { _, samples, _ in
+                guard let sample = samples?.first as? HKQuantitySample else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                
+                if identifier == .heartRate {
+                    let unit = HKUnit(fromString: "count/min")
+                    continuation.resume(returning: sample.quantity.doubleValue(for: unit))
+                } else if identifier == .oxygenSaturation {
+                    let unit = HKUnit.percent()
+                    continuation.resume(returning: sample.quantity.doubleValue(for: unit))
+                } else {
+                    continuation.resume(returning: nil)
+                }
+            }
+            healthStore.execute(query)
+        }
     }
     
     /// Gets real GPS from CoreLocation, falls back to Tel Aviv coastline
@@ -191,25 +238,23 @@ public class HeartbeatSDK {
                 "lng": location.coordinate.longitude
             ]
         }
-        // Fallback: Tel Aviv Beach with slight random movement
-        let latOffset = Double.random(in: -0.002...0.002)
-        let lngOffset = Double.random(in: -0.001...0.001)
+        
+        logger.error("Real GPS not available. Did you add NSLocationWhenInUseUsageDescription to Info.plist?")
         return [
-            "lat": 32.0853 + latOffset,
-            "lng": 34.7818 + lngOffset
+            "lat": 0.0,
+            "lng": 0.0
         ]
     }
     
     // MARK: - Send Heartbeat
     
-    private func sendHeartbeat() {
+    private func sendHeartbeat() async {
         guard let endpointUrl = endpointUrl, let url = URL(string: endpointUrl) else { return }
         
-        let heartRate = getHeartRate()
-        let spo2 = getSpO2()
+        await fetchLatestHealthData()
         let gps = getGPS()
         
-        logger.info("💓 HR: \(heartRate) bpm | 🫁 SpO2: \(spo2)% | 📍 GPS: \(gps["lat"] ?? 0), \(gps["lng"] ?? 0)")
+        logger.info("💓 HR: \(self.currentHeartRate) bpm | 🫁 SpO2: \(self.currentSpO2)% | 📍 GPS: \(gps["lat"] ?? 0), \(gps["lng"] ?? 0)")
         
         let payloadData: [String: Any] = [
             "device_id": deviceId ?? "",
@@ -219,8 +264,8 @@ public class HeartbeatSDK {
             "activity_type": activityType ?? "unknown",
             "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
             "battery_level": getBatteryLevel(),
-            "heart_rate": heartRate,
-            "spo2": spo2,
+            "heart_rate": currentHeartRate,
+            "spo2": currentSpO2,
             "gps": gps,
             "sdk_version": "1.1.0"
         ]
