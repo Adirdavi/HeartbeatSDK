@@ -1,11 +1,30 @@
 import Foundation
 import os
+import CoreLocation
 
 #if os(watchOS)
 import WatchKit
 #elseif os(iOS)
 import UIKit
 #endif
+
+// MARK: - Location Manager Delegate
+
+private class SDKLocationDelegate: NSObject, CLLocationManagerDelegate {
+    var lastLocation: CLLocation?
+    
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        lastLocation = locations.last
+    }
+    
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        if manager.authorizationStatus == .authorizedWhenInUse || manager.authorizationStatus == .authorizedAlways {
+            manager.startUpdatingLocation()
+        }
+    }
+}
+
+// MARK: - HeartbeatSDK
 
 public class HeartbeatSDK {
     public static let shared = HeartbeatSDK()
@@ -25,12 +44,28 @@ public class HeartbeatSDK {
     private var activityType: String?
     private var timer: Timer?
     
+    // Health Metrics (simulated for now, ready for HealthKit)
+    private var currentHeartRate: Int = 72
+    private var currentSpO2: Int = 98
+    private var heartRateDirection: Int = 1 // 1 = going up, -1 = going down
+    
+    // Location
+    private let locationManager = CLLocationManager()
+    private let locationDelegate = SDKLocationDelegate()
+    
     // Offline Queue
     private var offlineQueue: [[String: Any]] = []
     private let queueKey = "heartbeatsdk_offline_queue"
     
     private init() {
         loadQueue()
+        setupLocation()
+    }
+    
+    private func setupLocation() {
+        locationManager.delegate = locationDelegate
+        locationManager.desiredAccuracy = kCLLocationAccuracyBest
+        locationManager.requestWhenInUseAuthorization()
     }
     
     public func configure(projectId: String, deviceId: String, appId: String = Bundle.main.bundleIdentifier ?? "unknown") {
@@ -57,6 +92,9 @@ public class HeartbeatSDK {
         self.activityType = activityType
         self.isTransmitting = true
         
+        // Start location tracking
+        locationManager.startUpdatingLocation()
+        
         logger.info("Session opened: \(self.sessionId!)")
         
         startTransmitting()
@@ -68,6 +106,8 @@ public class HeartbeatSDK {
         isTransmitting = false
         sessionId = nil
         userId = nil
+        
+        locationManager.stopUpdatingLocation()
         
         logger.info("Session closed.")
     }
@@ -83,8 +123,59 @@ public class HeartbeatSDK {
         }
     }
     
+    // MARK: - Simulated Health Data
+    
+    /// Generates realistic heart rate values that fluctuate naturally
+    private func getHeartRate() -> Int {
+        // Simulate realistic heart rate fluctuation (60-180 BPM range for swimming)
+        let change = Int.random(in: -3...5)
+        currentHeartRate += change * heartRateDirection
+        
+        // Reverse direction at boundaries
+        if currentHeartRate > 160 { heartRateDirection = -1 }
+        if currentHeartRate < 65 { heartRateDirection = 1 }
+        
+        // Clamp to safe range
+        currentHeartRate = max(55, min(185, currentHeartRate))
+        return currentHeartRate
+    }
+    
+    /// Generates realistic SpO2 values (blood oxygen saturation)
+    private func getSpO2() -> Int {
+        // SpO2 normally stays between 95-100%
+        let change = Int.random(in: -1...1)
+        currentSpO2 += change
+        currentSpO2 = max(93, min(100, currentSpO2))
+        return currentSpO2
+    }
+    
+    /// Gets real GPS from CoreLocation, falls back to Tel Aviv coastline
+    private func getGPS() -> [String: Double] {
+        if let location = locationDelegate.lastLocation {
+            return [
+                "lat": location.coordinate.latitude,
+                "lng": location.coordinate.longitude
+            ]
+        }
+        // Fallback: Tel Aviv Beach with slight random movement
+        let latOffset = Double.random(in: -0.002...0.002)
+        let lngOffset = Double.random(in: -0.001...0.001)
+        return [
+            "lat": 32.0853 + latOffset,
+            "lng": 34.7818 + lngOffset
+        ]
+    }
+    
+    // MARK: - Send Heartbeat
+    
     private func sendHeartbeat() {
         guard let endpointUrl = endpointUrl, let url = URL(string: endpointUrl) else { return }
+        
+        let heartRate = getHeartRate()
+        let spo2 = getSpO2()
+        let gps = getGPS()
+        
+        logger.info("💓 HR: \(heartRate) bpm | 🫁 SpO2: \(spo2)% | 📍 GPS: \(gps["lat"] ?? 0), \(gps["lng"] ?? 0)")
         
         let payloadData: [String: Any] = [
             "device_id": deviceId ?? "",
@@ -94,10 +185,10 @@ public class HeartbeatSDK {
             "activity_type": activityType ?? "unknown",
             "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
             "battery_level": getBatteryLevel(),
-            "gps": [
-                "lat": 32.0853, // Mock GPS for now
-                "lng": 34.7818
-            ]
+            "heart_rate": heartRate,
+            "spo2": spo2,
+            "gps": gps,
+            "sdk_version": "1.1.0"
         ]
         
         let payload: [String: Any] = [
