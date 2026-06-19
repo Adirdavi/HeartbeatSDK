@@ -92,7 +92,7 @@ public class HeartbeatSDK {
             "session_id": sessionId ?? "",
             "user_id": userId ?? "",
             "activity_type": activityType ?? "unknown",
-            "timestamp": Int(Date().timeIntervalSince1970 * 1000),
+            "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
             "battery_level": getBatteryLevel(),
             "gps": [
                 "lat": 32.0853, // Mock GPS for now
