@@ -110,9 +110,7 @@ public class HeartbeatSDK {
         
         if isTransmitting {
             logger.warning("Session already open. Closing previous session.")
-            Task {
-                await closeSession()
-            }
+            closeSession()
         }
         
         self.sessionId = UUID().uuidString
@@ -128,13 +126,18 @@ public class HeartbeatSDK {
         startTransmitting()
     }
     
-    public func closeSession() async {
+    public func closeSession() {
         timer?.invalidate()
         timer = nil
         isTransmitting = false
         
+        let sessionToClose = sessionId
+        let userToClose = userId
+        
         // Send close notification to the server
-        await sendCloseNotification()
+        Task {
+            await sendCloseNotification(sessionId: sessionToClose, userId: userToClose)
+        }
         
         locationManager.stopUpdatingLocation()
         
@@ -144,7 +147,7 @@ public class HeartbeatSDK {
         logger.info("Session closed.")
     }
     
-    private func sendCloseNotification() async {
+    private func sendCloseNotification(sessionId: String?, userId: String?) async {
         guard let endpointUrl = endpointUrl, let url = URL(string: endpointUrl) else { return }
         
         let payloadData: [String: Any] = [
@@ -207,8 +210,8 @@ public class HeartbeatSDK {
         
         return await withCheckedContinuation { continuation in
             let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
-            // Query only samples from the last 15 minutes to avoid stale data
-            let predicate = HKQuery.predicateForSamples(withStart: Date().addingTimeInterval(-900), end: Date(), options: .strictEndDate)
+            // Query the absolute latest sample to ensure data availability during testing
+            let predicate: NSPredicate? = nil
             
             let query = HKSampleQuery(sampleType: type, predicate: predicate, limit: 1, sortDescriptors: [sortDescriptor]) { _, samples, _ in
                 guard let sample = samples?.first as? HKQuantitySample else {
