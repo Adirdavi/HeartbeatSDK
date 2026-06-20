@@ -220,7 +220,7 @@ public class HeartbeatSDK {
                 }
                 
                 if identifier == .heartRate {
-                    let unit = HKUnit(fromString: "count/min")
+                    let unit = HKUnit(from: "count/min")
                     continuation.resume(returning: sample.quantity.doubleValue(for: unit))
                 } else if identifier == .oxygenSaturation {
                     let unit = HKUnit.percent()
