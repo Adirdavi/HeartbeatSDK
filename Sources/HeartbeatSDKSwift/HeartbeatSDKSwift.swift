@@ -270,7 +270,7 @@ public class HeartbeatSDK {
             "heart_rate": currentHeartRate,
             "spo2": currentSpO2,
             "gps": gps,
-            "sdk_version": "1.1.0"
+            "sdk_version": "1.2.1"
         ]
         
         let payload: [String: Any] = [
