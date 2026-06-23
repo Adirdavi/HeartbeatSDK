@@ -1,0 +1,97 @@
+{
+  "sessions": [],
+  "alerts": [],
+  "crashReports": [],
+  "stations": [
+    {
+      "station_id": "station_gordon",
+      "name": "Gordon Beach Station",
+      "beach_name": "Gordon Beach",
+      "location": { "lat": 32.0831, "lng": 34.7678 },
+      "is_active": true,
+      "capacity": 3,
+      "contact_phone": "+972-3-555-0101"
+    },
+    {
+      "station_id": "station_frishman",
+      "name": "Frishman Beach Station",
+      "beach_name": "Frishman Beach",
+      "location": { "lat": 32.0797, "lng": 34.7666 },
+      "is_active": true,
+      "capacity": 2,
+      "contact_phone": "+972-3-555-0102"
+    },
+    {
+      "station_id": "station_bograshov",
+      "name": "Bograshov Beach Station",
+      "beach_name": "Bograshov Beach",
+      "location": { "lat": 32.0769, "lng": 34.7655 },
+      "is_active": true,
+      "capacity": 2,
+      "contact_phone": "+972-3-555-0103"
+    },
+    {
+      "station_id": "station_jerusalem",
+      "name": "Jerusalem Beach Station",
+      "beach_name": "Jerusalem Beach",
+      "location": { "lat": 32.0730, "lng": 34.7640 },
+      "is_active": true,
+      "capacity": 3,
+      "contact_phone": "+972-3-555-0104"
+    },
+    {
+      "station_id": "station_banana",
+      "name": "Banana Beach Station",
+      "beach_name": "Banana Beach",
+      "location": { "lat": 32.0677, "lng": 34.7615 },
+      "is_active": true,
+      "capacity": 2,
+      "contact_phone": "+972-3-555-0105"
+    },
+    {
+      "station_id": "station_alma",
+      "name": "Alma Beach Station",
+      "beach_name": "Alma Beach",
+      "location": { "lat": 32.0637, "lng": 34.7598 },
+      "is_active": true,
+      "capacity": 2,
+      "contact_phone": "+972-3-555-0106"
+    },
+    {
+      "station_id": "station_charles_clore",
+      "name": "Charles Clore Beach Station",
+      "beach_name": "Charles Clore Beach",
+      "location": { "lat": 32.0580, "lng": 34.7568 },
+      "is_active": true,
+      "capacity": 3,
+      "contact_phone": "+972-3-555-0107"
+    },
+    {
+      "station_id": "station_hilton",
+      "name": "Hilton Beach Station",
+      "beach_name": "Hilton Beach",
+      "location": { "lat": 32.0878, "lng": 34.7697 },
+      "is_active": true,
+      "capacity": 2,
+      "contact_phone": "+972-3-555-0108"
+    },
+    {
+      "station_id": "station_metzitzim",
+      "name": "Metzitzim Beach Station",
+      "beach_name": "Metzitzim Beach",
+      "location": { "lat": 32.0918, "lng": 34.7710 },
+      "is_active": true,
+      "capacity": 3,
+      "contact_phone": "+972-3-555-0109"
+    },
+    {
+      "station_id": "station_nordau",
+      "name": "Nordau Beach Station",
+      "beach_name": "Nordau Beach",
+      "location": { "lat": 32.0945, "lng": 34.7722 },
+      "is_active": false,
+      "capacity": 2,
+      "contact_phone": "+972-3-555-0110"
+    }
+  ]
+}
