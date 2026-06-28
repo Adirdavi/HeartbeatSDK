@@ -16,7 +16,7 @@ class HapticsController {
   /// Check if the device supports vibration.
   Future<void> initialize() async {
     try {
-      _deviceHasVibrator = await Vibration.hasVibrator() ?? false;
+      _deviceHasVibrator = await Vibration.hasVibrator() == true;
     } catch (e) {
       _deviceHasVibrator = false;
     }

@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:battery_plus/battery_plus.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 
 import 'crash_reporter.dart';
@@ -79,9 +77,6 @@ class HeartbeatSDK {
   String? _deviceId;
   String? _appId;
   bool _isConfigured = false;
-
-  // ───────────────────── Device Sensors ─────────────────────
-  final Battery _battery = Battery();
 
   // ───────────────────── Callbacks ─────────────────────
   /// Called when the SDK logs important events.

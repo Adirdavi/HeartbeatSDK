@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Server Terminal | HeartbeatSDK</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@400;600&display=swap');
+
+    :root {
+      --bg: #09090b;
+      --panel: #18181b;
+      --text: #e4e4e7;
+      --muted: #a1a1aa;
+      --border: #27272a;
+      
+      --accent: #3b82f6;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --error: #ef4444;
+      --pulse: rgba(59, 130, 246, 0.5);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 2rem;
+      background: rgba(24, 24, 27, 0.7);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 10;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 600;
+      font-size: 1.1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      color: var(--muted);
+      background: var(--bg);
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 10px var(--success);
+      animation: blink 2s infinite ease-in-out;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    main {
+      flex: 1;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      overflow: hidden;
+    }
+
+    .terminal-container {
+      flex: 1;
+      background: #000;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .terminal-header {
+      background: #111;
+      padding: 10px 16px;
+      border-bottom: 1px solid #222;
+      display: flex;
+      gap: 8px;
+    }
+
+    .mac-btn {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+    .mac-btn.close { background: #ff5f56; }
+    .mac-btn.min { background: #ffbd2e; }
+    .mac-btn.max { background: #27c93f; }
+
+    .terminal-body {
+      flex: 1;
+      padding: 1rem;
+      overflow-y: auto;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.9rem;
+      line-height: 1.6;
+      scroll-behavior: smooth;
+    }
+
+    .terminal-body::-webkit-scrollbar {
+      width: 8px;
+    }
+    .terminal-body::-webkit-scrollbar-thumb {
+      background: #333;
+      border-radius: 4px;
+    }
+
+    .log-line {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 4px;
+      animation: slideIn 0.2s ease-out forwards;
+      opacity: 0;
+      transform: translateY(5px);
+      word-break: break-all;
+    }
+
+    @keyframes slideIn {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .timestamp {
+      color: #555;
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    .log-content {
+      color: #ccc;
+    }
+
+    .log-info .log-content { color: #88c0d0; }
+    .log-error .log-content { color: #bf616a; }
+    
+    /* Highlight specific keywords */
+    .highlight-heartbeat { color: #a3be8c; font-weight: 600; }
+    .highlight-watchdog { color: #ebcb8b; }
+    .highlight-alert { color: #d08770; font-weight: 600; text-shadow: 0 0 5px rgba(208, 135, 112, 0.5); }
+    .highlight-success { color: #a3be8c; }
+
+    .controls {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+    }
+
+    button {
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+
+    button:hover {
+      background: #27272a;
+      border-color: #3f3f46;
+    }
+
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="url(#gradient)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <defs>
+          <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#3b82f6" />
+            <stop offset="100%" stop-color="#8b5cf6" />
+          </linearGradient>
+        </defs>
+        <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+      </svg>
+      HeartbeatSDK Server Terminal
+    </div>
+    <div class="status-indicator">
+      <div class="dot" id="conn-dot"></div>
+      <span id="conn-text">Connecting...</span>
+    </div>
+  </header>
+
+  <main>
+    <div class="terminal-container">
+      <div class="terminal-header">
+        <div class="mac-btn close"></div>
+        <div class="mac-btn min"></div>
+        <div class="mac-btn max"></div>
+      </div>
+      <div class="terminal-body" id="terminal">
+        <!-- Logs go here -->
+      </div>
+    </div>
+    <div class="controls">
+      <button onclick="clearLogs()">Clear Console</button>
+      <button onclick="toggleScroll()" id="scroll-btn">Auto-scroll: ON</button>
+    </div>
+  </main>
+
+  <script>
+    const terminal = document.getElementById('terminal');
+    const connDot = document.getElementById('conn-dot');
+    const connText = document.getElementById('conn-text');
+    let autoScroll = true;
+
+    function formatTime(date) {
+      return date.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit', fractionalSecondDigits: 3 });
+    }
+
+    function addLog(message, type = 'info') {
+      const line = document.createElement('div');
+      line.className = `log-line log-${type}`;
+      
+      const timeStr = formatTime(new Date());
+      
+      // Syntax highlighting
+      let content = message;
+      if (content.includes('Heartbeat:')) content = content.replace('Heartbeat:', '<span class="highlight-heartbeat">Heartbeat:</span>');
+      if (content.includes('Watchdog:')) content = content.replace('Watchdog:', '<span class="highlight-watchdog">Watchdog:</span>');
+      if (content.includes('Alert') || content.includes('emergency')) content = `<span class="highlight-alert">${content}</span>`;
+      if (content.includes('Database loaded') || content.includes('Listening')) content = `<span class="highlight-success">${content}</span>`;
+
+      line.innerHTML = `
+        <span class="timestamp">[${timeStr}]</span>
+        <span class="log-content">${content}</span>
+      `;
+      
+      terminal.appendChild(line);
+
+      // Keep max 1000 lines
+      if (terminal.children.length > 1000) {
+        terminal.removeChild(terminal.firstChild);
+      }
+
+      if (autoScroll) {
+        terminal.scrollTop = terminal.scrollHeight;
+      }
+    }
+
+    function clearLogs() {
+      terminal.innerHTML = '';
+      addLog('Console cleared.', 'info');
+    }
+
+    function toggleScroll() {
+      autoScroll = !autoScroll;
+      document.getElementById('scroll-btn').innerText = `Auto-scroll: ${autoScroll ? 'ON' : 'OFF'}`;
+    }
+
+    // Connect to SSE
+    function connect() {
+      const evtSource = new EventSource('/api/realtime');
+
+      evtSource.onopen = () => {
+        connDot.style.background = 'var(--success)';
+        connDot.style.boxShadow = '0 0 10px var(--success)';
+        connText.innerText = 'Connected';
+        addLog('Successfully connected to SSE stream.', 'info');
+      };
+
+      evtSource.addEventListener('server_log', (e) => {
+        const data = JSON.parse(e.data);
+        addLog(data.message, data.type);
+      });
+
+      evtSource.onerror = () => {
+        connDot.style.background = 'var(--error)';
+        connDot.style.boxShadow = '0 0 10px var(--error)';
+        connText.innerText = 'Disconnected';
+        evtSource.close();
+        setTimeout(connect, 3000); // Reconnect
+      };
+    }
+
+    // Initialize
+    addLog('Initializing HeartbeatSDK Terminal View...', 'info');
+    connect();
+
+  </script>
+</body>
+</html>

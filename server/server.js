@@ -34,6 +34,9 @@ app.use(express.json());
 // Trust proxy for accurate IP tracking (needed on Render/Heroku)
 app.set("trust proxy", true);
 
+// Serve static files (Server Terminal UI)
+app.use(express.static(path.join(__dirname, "public")));
+
 // ═══════════════════════════════════════════════════════════
 //  DATABASE (JSON File Persistence)
 // ═══════════════════════════════════════════════════════════
@@ -111,6 +114,22 @@ function broadcast(eventType, data) {
     }
   }
 }
+
+// Intercept console.log and console.error to broadcast them to the web terminal
+const originalConsoleLog = console.log;
+const originalConsoleError = console.error;
+
+console.log = function (...args) {
+  originalConsoleLog.apply(console, args);
+  const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(" ");
+  broadcast("server_log", { type: "info", message: msg, timestamp: Date.now() });
+};
+
+console.error = function (...args) {
+  originalConsoleError.apply(console, args);
+  const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(" ");
+  broadcast("server_log", { type: "error", message: msg, timestamp: Date.now() });
+};
 
 /** Broadcast current sessions and alerts to all clients */
 function broadcastFullState() {
