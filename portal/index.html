@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HeartbeatSDK — Admin Dashboard</title>
+  <meta name="description" content="Real-time smartwatch SDK monitoring dashboard. Track active sessions, manage alerts, and view device locations on a live map." />
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+
+  <!-- App CSS -->
+  <link rel="stylesheet" href="./index.css" />
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💓</text></svg>" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- ═══════════════ Header ═══════════════ -->
+    <header class="header" id="main-header">
+      <div class="header__brand">
+        <div class="header__logo" aria-hidden="true">💓</div>
+        <div>
+          <div class="header__title">HeartbeatSDK</div>
+          <div class="header__subtitle">SDK Admin Portal</div>
+        </div>
+      </div>
+      <div class="header__status">
+        <div class="connection-indicator" id="connection-indicator">
+          <span class="connection-dot" id="connection-dot"></span>
+          <span id="connection-text">Connected</span>
+        </div>
+        <div class="header__time" id="header-time">--:--:--</div>
+      </div>
+    </header>
+
+    <!-- ═══════════════ Stats Bar ═══════════════ -->
+    <section class="stats-bar" id="stats-bar" aria-label="Dashboard Statistics">
+      <div class="stat-card animate-fade-in" id="stat-sessions">
+        <div class="stat-card__icon stat-card__icon--sessions">⌚</div>
+        <div>
+          <div class="stat-card__value" id="stat-sessions-value">0</div>
+          <div class="stat-card__label">Active Sessions</div>
+        </div>
+      </div>
+      <div class="stat-card animate-fade-in" id="stat-emergencies">
+        <div class="stat-card__icon stat-card__icon--alerts">🚨</div>
+        <div>
+          <div class="stat-card__value" id="stat-emergencies-value">0</div>
+          <div class="stat-card__label">Emergencies</div>
+        </div>
+      </div>
+      <div class="stat-card animate-fade-in" id="stat-warnings">
+        <div class="stat-card__icon stat-card__icon--warnings">⚠️</div>
+        <div>
+          <div class="stat-card__value" id="stat-warnings-value">0</div>
+          <div class="stat-card__label">Warnings</div>
+        </div>
+      </div>
+      <div class="stat-card animate-fade-in" id="stat-battery">
+        <div class="stat-card__icon stat-card__icon--battery">🔋</div>
+        <div>
+          <div class="stat-card__value" id="stat-battery-value">--%</div>
+          <div class="stat-card__label">Avg Battery</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════ Main Dashboard ═══════════════ -->
+    <main class="dashboard" id="dashboard">
+
+      <!-- Sessions Panel -->
+      <aside class="panel animate-slide-left" id="sessions-panel" aria-label="Active Sessions">
+        <div class="panel__header">
+          <h2 class="panel__title">
+            ⌚ Active Sessions
+            <span class="panel__badge" id="sessions-count">0</span>
+          </h2>
+          <button id="btn-show-history" class="btn-small">History</button>
+        </div>
+        <div class="panel__body" id="sessions-list">
+          <div class="empty-state">
+            <div class="empty-state__icon">📡</div>
+            <div class="empty-state__text">No active sessions<br/>Waiting for devices...</div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Map Panel -->
+      <section class="panel" id="map-panel" aria-label="Map View">
+        <div class="panel__header">
+          <h1 class="panel__title">🗺️ Live Map — Tel Aviv Coastline</h1>
+        </div>
+        <div class="panel__body" style="padding: 0;">
+          <div class="map-container">
+            <div id="map"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Alerts Panel -->
+      <aside class="panel animate-slide-right" id="alerts-panel" aria-label="Alert Management">
+        <div class="panel__header">
+          <h2 class="panel__title">
+            🔔 Alerts
+            <span class="panel__badge" id="alerts-count">0</span>
+          </h2>
+        </div>
+        <div class="panel__body" id="alerts-list">
+          <div class="empty-state">
+            <div class="empty-state__icon">✅</div>
+            <div class="empty-state__text">All clear<br/>No pending alerts</div>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- ═══════════════ Emergency Overlay ═══════════════ -->
+    <div class="emergency-overlay" id="emergency-overlay" role="dialog" aria-modal="true" aria-label="Emergency Alert">
+      <div class="emergency-modal">
+        <div class="emergency-modal__icon">🚨</div>
+        <div class="emergency-modal__title">EMERGENCY ALERT</div>
+        <div class="emergency-modal__details" id="emergency-details">
+          <!-- Filled dynamically -->
+        </div>
+        <div class="emergency-modal__actions">
+          <button class="btn-emergency-ack" id="btn-emergency-ack" type="button">
+            ✓ Acknowledge & Respond
+          </button>
+          <button class="btn-emergency-dismiss" id="btn-emergency-dismiss" type="button">
+            Dismiss
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════ History Overlay ═══════════════ -->
+    <div class="history-overlay" id="history-overlay" role="dialog" aria-modal="true" aria-label="Connection History">
+      <div class="history-modal">
+        <div class="history-modal__header">
+          <h2 class="history-modal__title">📚 Connection History</h2>
+          <button class="btn-close-history" id="btn-close-history" type="button">✕</button>
+        </div>
+        <div class="history-modal__body">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>User ID</th>
+                <th>Device</th>
+                <th>Activity</th>
+                <th>Connected At</th>
+                <th>Disconnected At</th>
+                <th>Session ID</th>
+              </tr>
+            </thead>
+            <tbody id="history-table-body">
+              <!-- Filled dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+  <!-- App Modules -->
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
